@@ -1,0 +1,6 @@
+numpy
+networkx
+matplotlib
+shapely
+trimesh
+pyglet<2
