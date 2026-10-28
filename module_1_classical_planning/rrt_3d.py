@@ -1,11 +1,14 @@
+import time
 import numpy as np
 import networkx as nx
 import trimesh as tm
+from pyglet.gl import Config
+
 
 
 REGION = np.array([100, 100, 100])
 
-OBSTACLES : list[tm.Trimesh] = []
+OBSTACLES : tm.Trimesh = None
 
 
 def create_scene(n=5):
@@ -15,6 +18,7 @@ def create_scene(n=5):
     dims[dims < 3] = 3
     dims[dims > 60] = 60
     
+    obs = []
     for i in range(n):
         pos = tm.transformations.translation_matrix(coords[:,i])
         ori = tm.transformations.random_rotation_matrix()
@@ -24,10 +28,12 @@ def create_scene(n=5):
             geom = tm.primitives.Sphere(radius=min(dims[:,i]), transform=pos)
         else:
             geom = tm.primitives.Box(dims[:,i], trans)
-        
-        OBSTACLES.append(geom)
         # tm.primitives.Capsule
         # tm.primitives.Cylinder
+        obs.append(geom)
+    
+    # improve computation speed ?
+    OBSTACLES = tm.util.concatenate(obs)
     
 
 
@@ -41,38 +47,31 @@ def random_free_conf():
     return q
 
 def is_free_conf(q):
-    for o in OBSTACLES:
-        if o.contains([q]):
-            return False
+    if OBSTACLES.contains([q])[0]:
+        return False
     return True
 
 def is_through_obstacle(q0, q1):
     d = q1 - q0
     d_len = np.linalg.norm(d)
 
-    # line does not exist (q0 = q1)
-    if d_len == 0:
-        for o in OBSTACLES:
-            if o.contains([q0])[0]:
-                return True
+    # segment fully inside obstacle
+    # or line does not exist (q0 = q1)
+    if np.any(OBSTACLES.contains([q0, q1])):
+        return True
     
-    for o in OBSTACLES:
-        # segment fully inside obstacle
-        if np.any(o.contains([q0, q1])):
-            return True
-        
-        # look for ray hits 
-        locs, _, _ = o.ray.intersects_location(
-            ray_origins=[q0],
-            ray_directions=[d],
-            multiple_hits=False
-        )
-        if locs.size == 0:
-            continue
-        # keep hits before q1
-        hit_len = (locs - q0) @ (d / d_len)
-        if np.any(hit_len <= d_len):
-            return True
+    # look for ray hits 
+    locs, _, _ = OBSTACLES.ray.intersects_location(
+        ray_origins=[q0],
+        ray_directions=[d],
+        multiple_hits=False
+    )
+    if locs.size == 0:
+        return False
+    # keep hits before q1
+    hit_len = (locs - q0) @ (d / d_len)
+    if np.any(hit_len <= d_len):
+        return True
 
     return False
 
@@ -140,40 +139,55 @@ def main():
     create_scene(n=10)
     
     q0 = random_free_conf()
+    time_start = time.perf_counter()
     G, G_pos = build_rrt(q0, K=2000, dq=2)
+    time_total = time.perf_counter() - time_start
+    print(f"RRT creation took {time_total:.4f} s.")
     
     qf = random_free_conf()
+    time_start = time.perf_counter()
     path = find_path(qf, G, G_pos)
+    time_total = time.perf_counter() - time_start
+    print(f"Path search took {time_total:.4f} s.")
+    time_start = time.perf_counter()
     path_short = simplify_path(path)
+    time_total = time.perf_counter() - time_start
+    print(f"Path simplification took {time_total:.4f} s.")
     
     
     scene = tm.Scene()
     # plot obstacles
-    for o in OBSTACLES:
-        o.visual.face_colors = [0.9, 0, 0.1, 0.9]
+    OBSTACLES.visual.face_colors = [0.9, 0, 0.1, 1.0]
     scene.add_geometry(OBSTACLES)
     # plot RRT
     edges_geom = tm.load_path([[G_pos[u], G_pos[v]] for u, v in G.edges()])
-    edges_geom.colors = np.tile([0, 0, 0, 255], reps=(len(edges_geom.entities), 1))
+    edges_geom.colors = np.tile([100, 100, 100, 255], reps=(len(edges_geom.entities), 1))
     scene.add_geometry(edges_geom)
     # plot path
-    path_geom = tm.load_path([[pi, pj] for pi, pj in nx.utils.pairwise(path)])
-    path_geom.colors = np.tile([192, 192, 0, 255], reps=(len(path_geom.entities), 1))
+    path_segments = [[pi, pj] for pi, pj in nx.utils.pairwise(path)]
+    path_geom = [tm.creation.cylinder(radius=0.65, segment=seg, sections=12) for seg in path_segments]
+    path_geom = tm.util.concatenate(path_geom)
+    path_geom.visual.face_colors = [0., 0., 0.95, 1.]
     scene.add_geometry(path_geom)
     # plot short path
-    path_short_geom = tm.load_path([[pi, pj] for pi, pj in nx.utils.pairwise(path_short)])
-    path_short_geom.colors = np.tile([0, 192, 0, 255], reps=(len(path_short_geom.entities), 1))
+    path_short_segments = [[pi, pj] for pi, pj in nx.utils.pairwise(path_short)]
+    path_short_geom = [tm.creation.cylinder(radius=0.65, segment=seg, sections=12) for seg in path_short_segments]
+    path_short_geom = tm.util.concatenate(path_short_geom)
+    path_short_geom.visual.face_colors = [0., 0.95, 0., 1.]
     scene.add_geometry(path_short_geom)
     # plot start point
-    start = tm.primitives.Sphere(radius=1, center=q0)
-    start.visual.face_colors = [0.75, 0.75, 0, 1]
+    start = tm.primitives.Sphere(radius=2, center=q0)
+    start.visual.face_colors = [1., 1., 0., 1.]
     scene.add_geometry(start)
     # plot end point
-    end = tm.primitives.Box(extents=[1,1,1], transform=tm.transformations.translation_matrix(qf))
-    end.visual.face_colors = [0, 0.95, 0, 1]
+    end = tm.primitives.Box(extents=[3,3,3], transform=tm.transformations.translation_matrix(qf))
+    end.visual.face_colors = [1., 1., 0., 1.]
     scene.add_geometry(end)
     # show everything
-    scene.show()
+    scene.show(
+        window_conf=Config(sample_buffers=1, samples=8, depth_size=24, double_buffer=True),
+        line_settings={"line_width": 3},
+    )
     
 
 if __name__ == "__main__":
