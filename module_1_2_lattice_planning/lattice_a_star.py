@@ -121,23 +121,30 @@ class CarNode(Node[State, GridScene]):
         return self.value.x == goal.value.x and self.value.y == goal.value.y and self.value.th == goal.value.th
 
 
+def load_seed(seed: int | None):
+    if seed is None:
+        # load a seed or try a new example
+        seed = int(np.random.random() * 1234567)
+        print(seed)
+    np.random.seed(seed)
+
 if __name__ == "__main__":
     
-    seed = int(np.random.random() * 1234567)
-    print(seed)
-    np.random.seed(seed)
-    
-    np.random.seed(4565)  # BAD, works with  max_explored=1000000
-    # np.random.seed(4563)
-    # np.random.seed(921797)
-    # np.random.seed(593598)
+    seed = None
+    # seed = 4565
+    # seed = 4563
+    # seed = 921797
+    # seed = 593598
+    # seed = 691205
+    # seed = 447080
+    load_seed(seed)
     
     scene = GridScene((50, 50))
     start = scene.random_free_state()
     goal = scene.random_free_state()
 
     # run A*
-    done, path_or_tree = AStar(CarNode).find_path(scene, start, goal, max_explored=1000000, eps=1.0)
+    done, path_or_tree = AStar(CarNode).find_path(scene, start, goal, max_explored=100000, eps=1.0)
     if done:
         print(f"Path found with {len(path_or_tree)} steps!")
     else:
