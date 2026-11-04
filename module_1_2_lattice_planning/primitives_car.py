@@ -5,7 +5,7 @@ import matplotlib.transforms as transforms
 from matplotlib.collections import PatchCollection
 
 
-class State():
+class CarState():
     
     actions = {
         # "fl_long" : (-1, +2),
@@ -65,21 +65,28 @@ class State():
                         [s,  c, 0], 
                         [0,  0, 1]])
 
-    def next_states(self) -> list["State"]:
+    def next_states(self) -> list["CarState"]:
         neigh = []
         c, s = np.cos(self.th), np.sin(self.th)
         for name, (dx, cost) in self.actions.items():
             x = int(self.x + dx[0] * c - dx[1] * s)
             y = int(self.y + dx[0] * s + dx[1] * c)
             th = (self.th + dx[2]) % (2*np.pi)
-            sn = State(x, y, th, name)
+            sn = CarState(x, y, th, name)
             sn.cost = cost
             neigh.append(sn)
         return neigh
     
+    def __hash__(self):
+        x = (self.x, self.y, self.th)
+        return hash(x)
+    
+    def __eq__(self, other: "CarState"):
+        return self.x == other.x and self.y == other.y and self.th == other.th
+    
             
 if __name__ == "__main__":
-    x0 = State(0, 0, 0)
+    x0 = CarState(0, 0, 0)
     
     fig, ax = plt.subplots()
     ax.grid(True, "both")

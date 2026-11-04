@@ -1,11 +1,10 @@
-from typing_extensions import override
 import numpy as np
 import matplotlib.pyplot as plt
 import shapely as sh
 from shapely.plotting import plot_polygon
 
-from a_star import Node, AStar
-from primitives_car import State
+from a_star import AStar
+from primitives_car import CarState
 
 
 class GridScene:
@@ -36,13 +35,13 @@ class GridScene:
     def is_free_position(self, pos: np.ndarray) -> bool:
         return not sh.contains_xy(self.obstacles, pos[0], pos[1])
 
-    def random_free_state(self) -> State:
+    def random_free_state(self) -> CarState:
         while True:
             x = np.random.randint(0, self.w)
             y = np.random.randint(0, self.h)
             th = (2*np.pi) * (np.random.randint(0, 4) / 4)
             if self.is_valid_position((x, y)):
-                return State(x, y, th)
+                return CarState(x, y, th)
 
     def is_valid_position(self, pos: tuple[int, int]) -> bool:
         if pos not in self._cache_valid_pos:
@@ -51,7 +50,26 @@ class GridScene:
             self._cache_valid_pos[pos] = is_inside and is_free
         return self._cache_valid_pos[pos]
     
-    def visualize(self, start: State, goal: State, path: list[State] = []):
+    def neighbors(self, state: CarState) -> list[tuple[CarState, float]]:
+        """ Get all valid neighboring positions.
+        """
+        neighbors = state.next_states()
+        
+        allowed_neigh = []
+        for neighbor in neighbors:
+            x, y = neighbor.x, neighbor.y
+            if scene.is_valid_position((x, y)) \
+            and (neighbor.from_action != "fs_long" 
+                 or (neighbor.th % (2*np.pi) == 0          and scene.is_valid_position((x-1, y)))
+                 or (neighbor.th % (2*np.pi) == np.pi/2    and scene.is_valid_position((x, y-1)))
+                 or (neighbor.th % (2*np.pi) == np.pi      and scene.is_valid_position((x+1, y)))
+                 or (neighbor.th % (2*np.pi) == 3*np.pi/2  and scene.is_valid_position((x, y+1)))
+            ):
+                allowed_neigh.append((neighbor, neighbor.cost))
+        
+        return allowed_neigh
+    
+    def visualize(self, start: CarState, goal: CarState, path: list[CarState] = []):
         """ Visualize scene and found path.
         """
         plt.figure(figsize=(10, 10))
@@ -78,55 +96,16 @@ class GridScene:
         ax.set_xlim(0, self.w)
         ax.set_ylim(0, self.h)
         plt.show()
-    
-
-class CarNode(Node[State, GridScene]):
-    
-    @override
-    def __hash__(self):
-        x = (self.value.x, self.value.y, self.value.th)
-        return hash(x)
-    
-    @override
-    def heuristic(self, goal: "CarNode") -> float:
-        """ Calculate the estimated distance between two points using Euclidean distance.
-        """
-        return np.hypot(self.value.x - goal.value.x, self.value.y - goal.value.y)
-    
-    @override
-    def neighbors(self, scene: GridScene) -> list[tuple["CarNode", float]]:
-        """ Get all valid neighboring positions.
         
-            :param map: 2D numpy array where 0 represents walkable cells and 1 represents obstacles
-        """
-        neighbors = self.value.next_states()
-        
-        allowed_neigh = []
-        for neigh in neighbors:
-            x, y = neigh.x, neigh.y
-            if scene.is_valid_position((x, y)) \
-            and (neigh.from_action != "fs_long" 
-                 or (neigh.th % (2*np.pi) == 0          and scene.is_valid_position((x-1, y)))
-                 or (neigh.th % (2*np.pi) == np.pi/2    and scene.is_valid_position((x, y-1)))
-                 or (neigh.th % (2*np.pi) == np.pi      and scene.is_valid_position((x+1, y)))
-                 or (neigh.th % (2*np.pi) == 3*np.pi/2  and scene.is_valid_position((x, y+1)))
-            ):
-                neighbor = CarNode(neigh, parent=self, eps=self.eps)
-                allowed_neigh.append((neighbor, neigh.cost))
-        
-        return allowed_neigh
     
-    @override
-    def close_to_goal(self, goal: "CarNode"):
-        return self.value.x == goal.value.x and self.value.y == goal.value.y and self.value.th == goal.value.th
-
 
 def load_seed(seed: int | None):
     if seed is None:
         # load a seed or try a new example
-        seed = int(np.random.random() * 1234567)
-        print(seed)
+        seed = int(np.random.random() * 123456789)
+        print(f"Seed: {seed}")
     np.random.seed(seed)
+
 
 if __name__ == "__main__":
     
@@ -145,7 +124,9 @@ if __name__ == "__main__":
     goal = scene.random_free_state()
 
     # run A*
-    done, path_or_tree = AStar(CarNode).find_path(scene, start, goal, max_explored=100000, eps=1.0)
+    heuristic = lambda state, goal: np.hypot(state.x - goal.x, state.y - goal.y)
+    neighbors = lambda state: scene.neighbors(state)
+    done, path_or_tree = AStar().find_path(start, goal, heuristic, neighbors, max_expanded=100000)
     if done:
         print(f"Path found with {len(path_or_tree)} steps!")
     else:

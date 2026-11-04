@@ -1,145 +1,98 @@
-from typing import Optional, Generic, TypeVar, Self
-from abc import ABCMeta, abstractmethod
+from typing import TypeVar, Self, Callable
 import heapq
+from collections import defaultdict
 
 
-V = TypeVar("T")  # value type
-S = TypeVar("S")  # scene type
-
-class Node(Generic[V, S], metaclass=ABCMeta):
-    def __init__(self, 
-        value: V, 
-        g: Optional[float] = float('inf'), 
-        h: Optional[float] = 0.0, 
-        parent: Optional[Self] = None,
-        eps : float = 1
-    ):
-        """ Node for the A* algorithm.
-            :param position: coordinates of the node
-            :param g: cost from start to this node
-            :param h: estimated cost from this node to goal (heuristic)
-            :param parent: parent node
-            :param eps: inflation of the heuristic
-        """
-        super()
-        self.value = value
-        self.g = g
-        self.h = h
-        self.parent = parent
-        self.eps = eps
-    
-    @property
-    def f(self):
-        return self.g + self.eps * self.h
-    
-    def __eq__(self, other: Self):
-        return self.f == other.f
-    
-    def __ne__(self, other: Self):
-        return self.f != other.f
-    
-    def __lt__(self, other: Self):
-        return self.f < other.f
-    
-    def __gt__(self, other: Self):
-        return self.f > other.f
-    
-    def __ge__(self, other: Self):
-        return self.f >= other.f
-    
-    @abstractmethod
-    def __hash__(self):
-        raise NotImplementedError()
-
-    @abstractmethod
-    def heuristic(self, goal: Self) -> float:
-        """ Calculate the estimated distance to the goal.
-        """
-        raise NotImplementedError()
-    
-    @abstractmethod
-    def neighbors(self, scene : S) -> list[tuple[Self, float]]:
-        """ Get all valid neighboring positions.
-        
-            :param scene: the representation of the environment
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def close_to_goal(self, goal: Self) -> bool:
-        raise NotImplementedError()
-
-
+S = TypeVar("S")  # state type
 class AStar():
-    
-    def __init__(self, node_type: type[Node[V, S]]):
-        self.node_type = node_type
-    
-    def find_path(self, scene: S, start: V,  goal: V, max_explored: int = 10000, eps: float = 1) -> tuple[bool, list[V]]:
-        """ Find the optimal path using A* algorithm.
+
+    class Key():
+        def __init__(self, score : int, value : S):
+            super()
+            self.score = score
+            self.value = value
         
-            :param grid: 2D numpy array (0 = free space, 1 = obstacle)
-            :param start: Starting position (x, y)
-            :param goal: Goal position (x, y)
-            :param eps: inflation of the heuristic
+        def __lt__(self, other: Self):
+            return self.score < other.score
+
+    def find_path(self, 
+        start: S,  goal: S,
+        heuristic: Callable[[S, S], float], 
+        neighbors: Callable[[S,], list[S]], 
+        max_expanded: int = 10000
+    ) -> tuple[bool, list[S]]:
+        """ Find the optimal path using A* algorithm.
+            `start` and `goal` must implement `__hash__` and `__eq__`
+
+            :param start: starting state
+            :param goal: goal state
+            :param heuristic: function computing the estimated cost to reach the goal from a given node
+            :param neighbors: function computing the neighbors of a given node
         """
-        # Initialize start node
-        start_node = self.node_type(start, g=0, parent=None, eps=eps)
-        goal_node = self.node_type(goal, parent=None, eps=eps)
-        # setting h is useless since the start node is the only node ad the beginning, 
-        # so there is no need for actual comparison of f-scores (requiring h) 
-        # start_node.h = heuristic(start_node, goal_node)
         
         # Initialize open and closed sets
-        open_heap = [start_node]                    # Priority queue
-        open_dict = {hash(start_node): start_node}  # For quick node lookup
-        closed_set = set()                          # Explored nodes
+        gscore = defaultdict(lambda: float("inf"))
+        gscore[start] = 0
+        fscore = defaultdict(lambda: float("inf"))
+        fscore[start] = heuristic(start, goal)
+        parent_tree = dict()
+        
+        start_key = AStar.Key(fscore[start], start)
+        open_heap = [start_key]                 # Priority queue (uses < operator of `Key`, which uses `f`)
+        open_dict = {start: start_key}          # Reverse-lookup Key object and modify it in the heap, to then heapify again
+        expanded = 0
         
         while open_heap != []:
-            if len(closed_set) > max_explored:
+            
+            if expanded > max_expanded:
                 break
             
-            # Get node with lowest f value
-            current_node = heapq.heappop(open_heap)
+            # Get node with lowest f value (using < operator)
+            current = heapq.heappop(open_heap).value
             
-            # Check if we've reached the goal
-            if current_node.close_to_goal(goal_node):
-                return True, self.reconstruct_path(current_node)
-                
-            closed_set.add(current_node)
+            if current == goal:
+                return True, self.reconstruct_path(current, parent_tree)
+            
+            open_dict.pop(current)
             
             # Explore neighbors
-            for neighbor_node, cost in current_node.neighbors(scene):
-                # Skip if already explored
-                if neighbor_node in closed_set:
-                    continue
+            for neighbor, cost in neighbors(current):
                 
                 # Calculate new path cost
-                tentative_g = current_node.g + cost
+                tentative_g = gscore[current] + cost
                 
-                # Create or update neighbor
-                if hash(neighbor_node) not in open_dict:
-                    # New neighbor has default g and h
-                    neighbor_node.g = tentative_g
-                    neighbor_node.h = neighbor_node.heuristic(goal_node)
-                    heapq.heappush(open_heap, neighbor_node)
-                    open_dict[hash(neighbor_node)] = neighbor_node
-                    
-                elif tentative_g < open_dict[hash(neighbor_node)].g:
-                    # Found a better path to the (known) neighbor
-                    cache_neighbor_node = open_dict[hash(neighbor_node)]
-                    cache_neighbor_node.value = neighbor_node.value  # update the value
-                    cache_neighbor_node.g = tentative_g
-                    cache_neighbor_node.parent = current_node
-        
-        return False, list(set.union(*[set(self.reconstruct_path(node)) for node in closed_set]))  # No path found, giving all paths
+                if tentative_g < gscore[neighbor]:
+                    # Found a better path to the neighbor
+                    gscore[neighbor] = tentative_g
+                    fscore[neighbor] = tentative_g + heuristic(neighbor, goal)
+                    parent_tree[neighbor] = current
+                    # This is a bit tricky: ...
+                    if neighbor not in open_dict:
+                        # ... if neighbor is not in the open set, add it ...
+                        key = AStar.Key(fscore[neighbor], neighbor)
+                        open_dict[neighbor] = key
+                        heapq.heappush(open_heap, key)
+                    else:
+                        # ... but if neighbor is already in the open set, change the actual object it points to. 
+                        # This has nothing to do with A* itself: this "new" neighbor object has the same hash, but 
+                        # internally it might contain different info (e.g. advanced plotting), so change its value.
+                        key = open_dict[neighbor]
+                        key.value = neighbor
+                        # update heap after fscore change
+                        key.score = fscore[neighbor]
+                        heapq.heapify(open_heap)
+                
+                expanded += 1
+                if expanded > max_expanded:
+                    break
+                
+        return False, list(set.union(*[set(self.reconstruct_path(state, parent_tree)) for state in parent_tree.keys()]))  # No path found, giving all paths
     
-    def reconstruct_path(self, goal_node: Node[V, S]) -> list[V]:
+    def reconstruct_path(self, state: S, parent_tree: dict[S, S]) -> list[S]:
         """ Reconstruct the path from goal to start by following parents.
         """
-        path = []
-        current = goal_node
-        while current is not None:
-            path.append(current.value)
-            current = current.parent
+        path = [state]
+        while state in parent_tree.keys():
+            state = parent_tree[state]
+            path.append(state)
         return path[::-1]  # reverse for start to goal
