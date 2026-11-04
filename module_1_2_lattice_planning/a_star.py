@@ -95,7 +95,7 @@ class AStar():
         open_dict = {hash(start_node): start_node}  # For quick node lookup
         closed_set = set()                          # Explored nodes
         
-        while open_heap is not []:
+        while open_heap != []:
             if len(closed_set) > max_explored:
                 break
             
@@ -132,7 +132,7 @@ class AStar():
                     cache_neighbor_node.g = tentative_g
                     cache_neighbor_node.parent = current_node
         
-        return False, list(set.union(*[set(self.reconstruct_path(node.parent)) for node in open_heap]))  # No path found, giving all paths
+        return False, list(set.union(*[set(self.reconstruct_path(node)) for node in closed_set]))  # No path found, giving all paths
     
     def reconstruct_path(self, goal_node: Node[V, S]) -> list[V]:
         """ Reconstruct the path from goal to start by following parents.

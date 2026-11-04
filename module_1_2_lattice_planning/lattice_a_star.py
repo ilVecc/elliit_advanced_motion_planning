@@ -131,12 +131,13 @@ def load_seed(seed: int | None):
 if __name__ == "__main__":
     
     seed = None
-    # seed = 4565
+    # seed = 4565  # a cul-de-sac !
     # seed = 4563
     # seed = 921797
     # seed = 593598
     # seed = 691205
     # seed = 447080
+    # seed = 1049930  # UNLUCKY ! also this 812222
     load_seed(seed)
     
     scene = GridScene((50, 50))

@@ -9,14 +9,14 @@ class State():
     
     actions = {
         # "fl_long" : (-1, +2),
-        "fl_short" : ((+1, +1, +np.pi/2),   np.pi/2),
-        "fs_short" : ((+1,  0, +0),         1),
-        "fs_long" :  ((+2,  0, +0),         2),
-        "fr_short" : ((+1, -1, -np.pi/2),   np.pi/2),
+        "fl_short" : ((+1, +1, +np.pi/2),   1/(np.pi/2)),   # cost is time = 1/length
+        "fs_short" : ((+1,  0, +0),         1),             # "longer" actions are ran "faster"
+        "fs_long" :  ((+2,  0, +0),         1/2),
+        "fr_short" : ((+1, -1, -np.pi/2),   1/(np.pi/2)),
         # "fr_long" : (+1, +2),
-        "bl_short" : ((-1, +1, -np.pi/2),   np.pi/2),
-        "bs_short" : ((-1,  0, +0),         1),
-        "br_short" : ((-1, -1, +np.pi/2),   np.pi/2),
+        "bl_short" : ((-1, +1, -np.pi/2),   2/(np.pi/2)),   # backwards costs double
+        "bs_short" : ((-1,  0, +0),         2*1),
+        "br_short" : ((-1, -1, +np.pi/2),   2/(np.pi/2)),
     }
     
     kwargs = {"linewidth": 3}
