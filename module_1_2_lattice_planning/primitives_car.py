@@ -31,7 +31,7 @@ class State():
         "heading" : patch.FancyArrow(0, 0, 0.25, 0, head_width=0.1, linewidth=3)
     }
     
-    def __init__(self, x: int, y: int, th, from_action : str = ""):
+    def __init__(self, x: int, y: int, th: float, from_action : str = ""):
         super()
         self.x = x
         self.y = y
@@ -67,12 +67,12 @@ class State():
 
     def next_states(self) -> list["State"]:
         neigh = []
-        for name, (action, cost) in self.actions.items():
-            x = np.array([self.x, self.y, self.th])
-            dx = np.array(action)
-            xn = x + State.rotz(self.th) @ dx
-            xn[2] = xn[2] % (2*np.pi)
-            sn = State(xn[0], xn[1], xn[2], name)
+        c, s = np.cos(self.th), np.sin(self.th)
+        for name, (dx, cost) in self.actions.items():
+            x = int(self.x + dx[0] * c - dx[1] * s)
+            y = int(self.y + dx[0] * s + dx[1] * c)
+            th = (self.th + dx[2]) % (2*np.pi)
+            sn = State(x, y, th, name)
             sn.cost = cost
             neigh.append(sn)
         return neigh

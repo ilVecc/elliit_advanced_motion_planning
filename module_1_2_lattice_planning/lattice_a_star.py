@@ -29,9 +29,12 @@ class GridScene:
             geom = sh.affinity.rotate(geom, angles[i], use_radians=True)
             obs.append(geom)
         self.obstacles = sh.GeometryCollection(obs)
+        sh.prepare(self.obstacles)
+        
+        self._cache_valid_pos = {}
     
     def is_free_position(self, pos: np.ndarray) -> bool:
-        return not self.obstacles.contains(sh.Point(pos))
+        return not sh.contains_xy(self.obstacles, pos[0], pos[1])
 
     def random_free_state(self) -> State:
         while True:
@@ -41,9 +44,12 @@ class GridScene:
             if self.is_valid_position((x, y)):
                 return State(x, y, th)
 
-    def is_valid_position(self, pos: np.ndarray) -> bool:
-        is_inside = 0 < pos[0] < self.w and 0 < pos[1] < self.h
-        return is_inside and self.is_free_position(pos)
+    def is_valid_position(self, pos: tuple[int, int]) -> bool:
+        if pos not in self._cache_valid_pos:
+            is_inside = 0 < pos[0] < self.w and 0 < pos[1] < self.h
+            is_free = self.is_free_position(pos)
+            self._cache_valid_pos[pos] = is_inside and is_free
+        return self._cache_valid_pos[pos]
     
     def visualize(self, start: State, goal: State, path: list[State] = []):
         """ Visualize scene and found path.
@@ -97,12 +103,13 @@ class CarNode(Node[State, GridScene]):
         
         allowed_neigh = []
         for neigh in neighbors:
-            if scene.is_valid_position((neigh.x, neigh.y)) \
+            x, y = neigh.x, neigh.y
+            if scene.is_valid_position((x, y)) \
             and (neigh.from_action != "fs_long" 
-                 or (neigh.th % (2*np.pi) == 0          and scene.is_valid_position((int(neigh.x)-1, neigh.y)))
-                 or (neigh.th % (2*np.pi) == np.pi/2    and scene.is_valid_position((int(neigh.x), neigh.y-1)))
-                 or (neigh.th % (2*np.pi) == np.pi      and scene.is_valid_position((int(neigh.x)+1, neigh.y)))
-                 or (neigh.th % (2*np.pi) == 3*np.pi/2  and scene.is_valid_position((int(neigh.x), neigh.y+1)))
+                 or (neigh.th % (2*np.pi) == 0          and scene.is_valid_position((x-1, y)))
+                 or (neigh.th % (2*np.pi) == np.pi/2    and scene.is_valid_position((x, y-1)))
+                 or (neigh.th % (2*np.pi) == np.pi      and scene.is_valid_position((x+1, y)))
+                 or (neigh.th % (2*np.pi) == 3*np.pi/2  and scene.is_valid_position((x, y+1)))
             ):
                 neighbor = CarNode(neigh, parent=self, eps=self.eps)
                 allowed_neigh.append((neighbor, neigh.cost))
@@ -120,10 +127,10 @@ if __name__ == "__main__":
     print(seed)
     np.random.seed(seed)
     
-    # np.random.seed(4565)  # BAD, works with  max_explored=1000000
+    np.random.seed(4565)  # BAD, works with  max_explored=1000000
     # np.random.seed(4563)
     # np.random.seed(921797)
-    np.random.seed(593598)
+    # np.random.seed(593598)
     
     scene = GridScene((50, 50))
     start = scene.random_free_state()
