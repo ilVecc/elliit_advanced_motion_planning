@@ -143,5 +143,3 @@ class AStar():
             path.append(current.value)
             current = current.parent
         return path[::-1]  # reverse for start to goal
-
-

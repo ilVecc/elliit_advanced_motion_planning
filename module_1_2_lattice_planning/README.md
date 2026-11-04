@@ -1,8 +1,8 @@
 # Module 1 : Classical Planning
 
-Run the ARA* examples using
+Run the A* examples using
 ```bash
-python3 lattice.py
+python3 lattice_a_star.py
 ```
 
 
