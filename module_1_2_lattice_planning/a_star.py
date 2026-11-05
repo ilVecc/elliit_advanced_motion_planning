@@ -66,20 +66,20 @@ class AStar():
                     gscore[neighbor] = tentative_g
                     fscore[neighbor] = tentative_g + heuristic(neighbor, goal)
                     parent_tree[neighbor] = current
-                    # This is a bit tricky: ...
+                    
                     if neighbor not in open_dict:
-                        # ... if neighbor is not in the open set, add it ...
+                        # add neighbor to the frontier
                         key = AStar.Key(fscore[neighbor], neighbor)
                         open_dict[neighbor] = key
                         heapq.heappush(open_heap, key)
                     else:
-                        # ... but if neighbor is already in the open set, change the actual object it points to. 
-                        # This has nothing to do with A* itself: this "new" neighbor object has the same hash, but 
-                        # internally it might contain different info (e.g. advanced plotting), so change its value.
+                        # better path to neighbor, update the heap
                         key = open_dict[neighbor]
-                        key.value = neighbor
-                        # update heap after fscore change
                         key.score = fscore[neighbor]
+                        # This has nothing to do with A* itself: this "new" neighbor object has the same hash, but 
+                        # internally it might contain different info (e.g. for advanced plotting), so by changing 
+                        # the value we make sure nothing is left behind.
+                        key.value = neighbor
                         heapq.heapify(open_heap)
                 
                 expanded += 1

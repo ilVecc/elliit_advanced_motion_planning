@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import shapely as sh
 from shapely.plotting import plot_polygon
 
-from a_star import AStar
+from ara_star import ARAStar
 from primitives_car import CarState
 
 
@@ -103,7 +103,7 @@ def load_seed(seed: int | None):
     if seed is None:
         # load a seed or try a new example
         seed = int(np.random.random() * 123456789)
-        print(f"Seed: {seed}")
+    print(f"Seed: {seed}")
     np.random.seed(seed)
 
 
@@ -126,9 +126,19 @@ if __name__ == "__main__":
     # run A*
     heuristic = lambda state, goal: np.hypot(state.x - goal.x, state.y - goal.y)
     neighbors = lambda state: scene.neighbors(state)
-    done, path_or_tree = AStar().find_path(start, goal, heuristic, neighbors, max_expanded=100000)
-    if done:
-        print(f"Path found with {len(path_or_tree)} steps!")
-    else:
-        print(f"No path found!")
+    solver = ARAStar(start, goal, heuristic, neighbors, max_expanded=100000, eps=2.5)
+    
+    paths = []
+    for status, path_or_tree in solver.find_path():
+        match status:
+            case "failed":
+                paths = path_or_tree
+                print(f"No path found!")
+            case "success":
+                paths.append(path_or_tree)
+                print(f"Suboptimal path found: {len(path_or_tree)} steps (cost: {solver.gscore[goal]:.2f}) with eps={solver.eps:.2f}")
+            case "optimal":
+                paths.append(path_or_tree)
+                print(f"Optimal path found: {len(path_or_tree)} steps (cost: {solver.gscore[goal]:.2f})")
+    
     scene.visualize(start, goal, path_or_tree)

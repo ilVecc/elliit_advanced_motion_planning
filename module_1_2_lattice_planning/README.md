@@ -2,7 +2,12 @@
 
 Run the A* examples using
 ```bash
-python3 lattice_a_star.py
+python3 lattice_astar.py
+```
+
+Run the ARA* examples using
+```bash
+python3 lattice_arastar.py
 ```
 
 

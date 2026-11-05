@@ -30,6 +30,7 @@ class CarState():
         "bs_short": patch.FancyArrow(*(0, 0), *(+1, 0), head_length=0, **kwargs),
         "heading" : patch.FancyArrow(0, 0, 0.25, 0, head_width=0.1, linewidth=3)
     }
+    _cardinals = {0: "E", np.pi/2: "N", np.pi: "W", 3*np.pi/2: "S"}
     
     def __init__(self, x: int, y: int, th: float, from_action : str = ""):
         super()
@@ -83,6 +84,9 @@ class CarState():
     
     def __eq__(self, other: "CarState"):
         return self.x == other.x and self.y == other.y and self.th == other.th
+    
+    def __repr__(self):
+        return f"({self.x}, {self.y}, {self._cardinals[self.th]}) from \"{self.from_action}\""
     
             
 if __name__ == "__main__":
